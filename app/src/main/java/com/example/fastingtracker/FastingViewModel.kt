@@ -97,5 +97,32 @@ class FastingViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun endFastAtTime(timeString: String): String {
+        val calendar = Calendar.getInstance()
+        val parts = timeString.split(":")
+        if (parts.size == 2) {
+            calendar.set(Calendar.HOUR_OF_DAY, parts[0].toIntOrNull() ?: calendar.get(Calendar.HOUR_OF_DAY))
+            calendar.set(Calendar.MINUTE, parts[1].toIntOrNull() ?: 0)
+            calendar.set(Calendar.SECOND, 0)
+
+            // Safety check: if end time is set in the future, assume it was earlier today or yesterday
+            if (calendar.timeInMillis > System.currentTimeMillis()) {
+                calendar.add(Calendar.DATE, -1)
+            }
+
+            // Calculate duration based on manual end time
+            val diff = calendar.timeInMillis - startTimeMillis
+            val result = formatMillis(diff)
+
+            // Reset state
+            _isFasting.value = false
+            _timerDisplay.value = "00:00:00"
+            prefs.edit().putBoolean("is_fasting", false).putString("last_result", "Last fast: $result").apply()
+
+            return result
+        }
+        return "00:00:00"
+    }
+
     fun getDefaultHour(): Int = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
 }

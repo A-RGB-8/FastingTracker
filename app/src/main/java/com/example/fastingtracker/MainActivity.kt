@@ -26,73 +26,87 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun FastingApp(viewModel: FastingViewModel = viewModel()) {
-    val context = LocalContext.current // Needed for the Toast
+    val context = LocalContext.current
     val isFasting by viewModel.isFasting.collectAsState()
     val timerDisplay by viewModel.timerDisplay.collectAsState()
 
-    // State for the manual time input (defaults to current hour:00)
+    // Two separate state holders for the two text fields
     val defaultTime = "${viewModel.getDefaultHour()}:00"
-    var manualTime by remember { mutableStateOf(defaultTime) }
+    var startManualTime by remember { mutableStateOf(defaultTime) }
+    var endManualTime by remember { mutableStateOf(defaultTime) }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier.fillMaxSize().padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
             text = if (isFasting) "$timerDisplay fasting" else "00:00:00 feeding",
             color = if (isFasting) Color(0xFF4CAF50) else Color(0xFFF44336),
-            fontSize = 32.sp,
-            style = MaterialTheme.typography.headlineLarge
+            fontSize = 28.sp,
+            style = MaterialTheme.typography.headlineMedium
         )
 
-        // Manual Time Input Field
-        OutlinedTextField(
-            value = manualTime,
-            onValueChange = { manualTime = it },
-            label = { Text("Time (HH:mm)") },
-            modifier = Modifier.fillMaxWidth()
-        )
+        // --- SECTION 1: START FASTING ---
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("Fasting Begin", style = MaterialTheme.typography.titleMedium)
+                OutlinedTextField(
+                    value = startManualTime,
+                    onValueChange = { startManualTime = it },
+                    label = { Text("Start Time (HH:mm)") },
+                    enabled = !isFasting, // Gray out if already fasting
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    Button(
+                        onClick = { viewModel.startFast() },
+                        enabled = !isFasting,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                    ) { Text("Start Now") }
 
-        // 1. Start Fasting NOW
-        Button(
-            onClick = { if (!isFasting) viewModel.startFast() },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
-        ) {
-            Text("Start Fasting NOW")
-        }
-
-        // 2. Start Fasting at GIVEN TIME
-        Button(
-            onClick = { if (!isFasting) viewModel.startFastAtTime(manualTime) },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3)) // Blue for custom
-        ) {
-            Text("Start Fasting at $manualTime")
-        }
-
-        // 3. Finish Fasting
-        Button(
-            onClick = {
-                if (isFasting) {
-                    val duration = viewModel.endFast()
-                    Toast.makeText(context, "Fast ended after $duration hours", Toast.LENGTH_LONG).show()
+                    Button(
+                        onClick = { viewModel.startFastAtTime(startManualTime) },
+                        enabled = !isFasting,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
+                    ) { Text("Start at $startManualTime") }
                 }
-            },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
-        ) {
-            Text("Finish Fasting")
+            }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        // --- SECTION 2: END FASTING ---
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("Fasting Ending", style = MaterialTheme.typography.titleMedium)
+                OutlinedTextField(
+                    value = endManualTime,
+                    onValueChange = { endManualTime = it },
+                    label = { Text("End Time (HH:mm)") },
+                    enabled = isFasting, // Gray out if not fasting
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    Button(
+                        onClick = {
+                            val duration = viewModel.endFast()
+                            Toast.makeText(context, "Fast ended: $duration", Toast.LENGTH_LONG).show()
+                        },
+                        enabled = isFasting,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336))
+                    ) { Text("End Now") }
 
-        // Display the last result permanently at the bottom
-        Text(
-            text = viewModel.getLastResult(),
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color.Gray
-        )
+                    Button(
+                        onClick = {
+                            val duration = viewModel.endFastAtTime(endManualTime)
+                            Toast.makeText(context, "Fast ended: $duration", Toast.LENGTH_LONG).show()
+                        },
+                        enabled = isFasting,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE91E63))
+                    ) { Text("End at $endManualTime") }
+                }
+            }
+        }
+
+        Text(text = viewModel.getLastResult(), color = Color.Gray)
     }
 }
