@@ -35,3 +35,7 @@ jobs:
       with:
         name: FastFeed-Release
         path: app/build/outputs/apk/release/app-release.apk
+on:
+  push:
+    branches: [ "master" ]
+  workflow_dispatch:  # This is the "Manual Override" button
