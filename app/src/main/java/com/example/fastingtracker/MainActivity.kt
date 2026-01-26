@@ -17,7 +17,8 @@ import java.time.Duration
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-class FastingViewModel : ViewModel() {
+// Naming this uniquely to avoid any potential classpath conflicts
+class FastingAppViewModel : ViewModel() {
     var isFasting by mutableStateOf(false)
     var startTime by mutableStateOf<LocalDateTime?>(null)
     var goalHours by mutableStateOf<Float?>(null)
@@ -43,33 +44,37 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            val viewModel: FastingViewModel = viewModel()
+            val viewModel: FastingAppViewModel = viewModel()
             FastingScreen(viewModel)
         }
     }
 }
 
 @Composable
-fun FastingScreen(viewModel: FastingViewModel) {
-    // 1. Timer Logic (Calculates elapsed time every second)
+fun FastingScreen(viewModel: FastingAppViewModel) {
     var currentFastedHours by remember { mutableStateOf(0f) }
     val formatter = DateTimeFormatter.ofPattern("HH:mm:ss")
 
-    LaunchedEffect(viewModel.isFasting) {
+    // Check for goal on startup if not fasting
+    LaunchedEffect(Unit) {
         if (!viewModel.isFasting && viewModel.goalHours == null) {
             viewModel.showGoalDialog = true
         }
+    }
+
+    // Timer Loop
+    LaunchedEffect(viewModel.isFasting) {
         while (viewModel.isFasting) {
             val now = LocalDateTime.now()
             viewModel.startTime?.let {
                 val diff = Duration.between(it, now)
-                currentFastedHours = diff.toMinutes() / 60f
+                currentFastedHours = diff.toSeconds() / 3600f // Precise float calculation
             }
             kotlinx.coroutines.delay(1000)
         }
     }
 
-    // 2. Goal Selection Dialog
+    // UI Structure
     if (viewModel.showGoalDialog) {
         AlertDialog(
             onDismissRequest = { viewModel.showGoalDialog = false },
@@ -97,19 +102,16 @@ fun FastingScreen(viewModel: FastingViewModel) {
         )
     }
 
-    // 3. UI Layout
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween
     ) {
-        // TOP: Timestamps
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text("Start: ${viewModel.startTime?.format(formatter) ?: "--:--:--"}")
             Text("Now: ${LocalDateTime.now().format(formatter)}")
         }
 
-        // MIDDLE: Dynamic Message Box
         Box(
             modifier = Modifier.fillMaxWidth().weight(1f),
             contentAlignment = Alignment.Center
@@ -125,35 +127,35 @@ fun FastingScreen(viewModel: FastingViewModel) {
                 text = message,
                 style = MaterialTheme.typography.headlineSmall,
                 textAlign = TextAlign.Center,
-                color = Color.Gray
+                color = Color.DarkGray
             )
         }
 
-        // BUTTONS: Control
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Button(onClick = { 
-                viewModel.startTime = LocalDateTime.now()
-                viewModel.isFasting = true 
-            }, enabled = !viewModel.isFasting) {
-                Text("Start Fast")
-            }
-            Button(onClick = { 
-                viewModel.isFasting = false
-                viewModel.lastFastDuration = String.format("%.1f", currentFastedHours)
-                viewModel.goalHours = null // Reset goal for next time
-            }, enabled = viewModel.isFasting) {
-                Text("End Fast")
-            }
+            Button(
+                onClick = { 
+                    viewModel.startTime = LocalDateTime.now()
+                    viewModel.isFasting = true 
+                }, 
+                enabled = !viewModel.isFasting
+            ) { Text("Start Fast") }
+
+            Button(
+                onClick = { 
+                    viewModel.isFasting = false
+                    viewModel.lastFastDuration = String.format("%.1f", currentFastedHours)
+                }, 
+                enabled = viewModel.isFasting
+            ) { Text("End Fast") }
         }
 
-        // BOTTOM: Stats
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             val goalDisplay = viewModel.goalHours?.let { "${it.toInt()} h" } ?: "NaN"
-            Text("Goal = $goalDisplay", style = MaterialTheme.typography.bodyLarge)
-            Text("last fast = ${viewModel.lastFastDuration} h", style = MaterialTheme.typography.bodyLarge)
+            Text("Goal = $goalDisplay")
+            Text("last fast = ${viewModel.lastFastDuration} h")
         }
     }
 }
