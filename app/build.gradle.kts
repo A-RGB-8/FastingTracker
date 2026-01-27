@@ -25,7 +25,9 @@ android {
         create("release") {
             storeFile = file("release-keystore.jks")
             storePassword = "Android"
-            keyAlias = "AR-Android-Key"
+            // Keystore is PKCS12 with lowercase alias 'ar-android-key'
+            storeType = "pkcs12"
+            keyAlias = "ar-android-key"
             keyPassword = "Android"
         }
     }
