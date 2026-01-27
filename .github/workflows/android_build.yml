@@ -27,7 +27,7 @@ jobs:
     - name: Build with Gradle
       run: |
         set -o pipefail
-        ./gradlew assembleRelease --stacktrace 2>&1 | tee build.log
+        ./gradlew --no-daemon printReleaseKeyAlias clean assembleRelease --stacktrace 2>&1 | tee build.log
       env:
         KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         KEY_ALIAS: ${{ secrets.KEY_ALIAS }}

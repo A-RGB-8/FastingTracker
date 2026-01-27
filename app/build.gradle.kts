@@ -77,3 +77,10 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
+
+// Debug task to print the configured release key alias (useful in CI)
+tasks.register("printReleaseKeyAlias") {
+    doLast {
+        println("Configured release keyAlias: " + android.signingConfigs.getByName("release").keyAlias)
+    }
+}
