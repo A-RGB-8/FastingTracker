@@ -25,7 +25,9 @@ jobs:
       run: chmod +x gradlew
 
     - name: Build with Gradle
-      run: ./gradlew assembleRelease
+      run: |
+        set -o pipefail
+        ./gradlew assembleRelease --stacktrace 2>&1 | tee build.log
       env:
         KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
@@ -36,3 +38,9 @@ jobs:
       with:
         name: FastFeed-Release
         path: app/build/outputs/apk/**/*.apk  # This searches all subfolders
+
+    - name: Upload build log
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-log
+        path: build.log
