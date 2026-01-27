@@ -4,16 +4,20 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
@@ -24,14 +28,18 @@ fun HistoryScreen(
     onNavigateBack: () -> Unit,
     onDeleteSession: (FastingSessionUiModel) -> Unit
 ) {
+    var sessionToDelete by remember { mutableStateOf<FastingSessionUiModel?>(null) }
+    var sessionToEdit by remember { mutableStateOf<FastingSessionUiModel?>(null) }
+    var editedGoal by remember { mutableStateOf("") }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         // Top App Bar
         TopAppBar(
-            title = { Text("Fasting History") },
+            title = { Text("Fasting History", fontSize = 20.sp) },
             navigationIcon = {
                 IconButton(onClick = onNavigateBack) {
                     Icon(
@@ -39,7 +47,12 @@ fun HistoryScreen(
                         contentDescription = "Back"
                     )
                 }
-            }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                titleContentColor = Color.White,
+                navigationIconContentColor = Color.White
+            )
         )
 
         if (sessions.isEmpty()) {
@@ -70,11 +83,67 @@ fun HistoryScreen(
                 items(sessions) { session ->
                     SessionCard(
                         session = session,
-                        onDelete = { onDeleteSession(session) }
+                        onDelete = { sessionToDelete = session },
+                        onEdit = { 
+                            sessionToEdit = session
+                            editedGoal = session.goalHours.toInt().toString()
+                        }
                     )
                 }
             }
         }
+    }
+
+    // Delete Confirmation Dialog
+    if (sessionToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { sessionToDelete = null },
+            title = { Text("Delete Session?", fontSize = 18.sp) },
+            text = { Text("Are you sure you want to delete this fasting session?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        sessionToDelete?.let { onDeleteSession(it) }
+                        sessionToDelete = null
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = Color.Red)
+                ) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { sessionToDelete = null }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Edit Goal Dialog
+    if (sessionToEdit != null) {
+        AlertDialog(
+            onDismissRequest = { sessionToEdit = null },
+            title = { Text("Edit Goal", fontSize = 18.sp) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Session: ${sessionToEdit!!.startTime.format(DateTimeFormatter.ofPattern("MMM dd, yyyy"))}")
+                    Text("Original goal: ${sessionToEdit!!.goalHours.toInt()} hours")
+                    Text("Note: Goal is for reference only. Actual duration cannot be changed.", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    OutlinedTextField(
+                        value = editedGoal,
+                        onValueChange = { editedGoal = it },
+                        label = { Text("New goal (hours)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Number
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        sessionToEdit = null
+                    }
+                ) { Text("Done") }
+            }
+        )
     }
 }
 
@@ -92,7 +161,8 @@ fun SummaryCard(sessions: List<FastingSessionUiModel>) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
     ) {
         Column(
             modifier = Modifier
@@ -124,12 +194,14 @@ fun StatItem(label: String, value: String) {
         Text(
             value,
             style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.primary
+            color = MaterialTheme.colorScheme.primary,
+            fontSize = 18.sp
         )
         Text(
             label,
             style = MaterialTheme.typography.bodySmall,
-            color = Color.Gray
+            color = Color.Gray,
+            fontSize = 12.sp
         )
     }
 }
@@ -137,10 +209,12 @@ fun StatItem(label: String, value: String) {
 @Composable
 fun SessionCard(
     session: FastingSessionUiModel,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onEdit: () -> Unit
 ) {
     val dateFormatter = DateTimeFormatter.ofPattern("MMM dd, yyyy")
     val timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
+    var expanded by remember { mutableStateOf(false) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -160,11 +234,13 @@ fun SessionCard(
                 Text(
                     session.startTime.format(dateFormatter),
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
+                    color = Color.Gray,
+                    fontSize = 12.sp
                 )
                 Text(
                     "${session.startTime.format(timeFormatter)} - ${session.endTime.format(timeFormatter)}",
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontSize = 14.sp
                 )
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -173,7 +249,8 @@ fun SessionCard(
                     Text(
                         "Goal: ${session.goalHours.toInt()}h",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color.Gray
+                        color = Color.Gray,
+                        fontSize = 11.sp
                     )
                     Text(
                         "Duration: ${String.format("%.1f", session.durationHours)}h",
@@ -182,17 +259,29 @@ fun SessionCard(
                             Color(0xFF4CAF50) // Green for success
                         } else {
                             Color.Gray
-                        }
+                        },
+                        fontSize = 11.sp
                     )
                 }
             }
 
-            IconButton(onClick = onDelete) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete session",
-                    tint = Color.Red
-                )
+            Row {
+                IconButton(onClick = onEdit, modifier = Modifier.size(40.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Edit session",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                IconButton(onClick = onDelete, modifier = Modifier.size(40.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Delete session",
+                        tint = Color.Red,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
     }
