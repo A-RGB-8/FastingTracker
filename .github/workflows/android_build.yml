@@ -30,11 +30,13 @@ jobs:
       id: sign_app
       with:
         releaseDirectory: app/build/outputs/apk/release
-        # This action decodes the SIGNING_KEY secret automatically
         signingKeyBase64: ${{ secrets.SIGNING_KEY }}
         alias: ${{ secrets.ALIAS }}
         keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
         keyPassword: ${{ secrets.KEY_PASSWORD }}
+      env:
+        # This is the fix: Telling the action exactly where to find zipalign
+        BUILD_TOOLS_VERSION: "35.0.0"
 
     - name: Upload Signed APK
       uses: actions/upload-artifact@v4
