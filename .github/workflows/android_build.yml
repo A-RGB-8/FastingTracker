@@ -2,8 +2,8 @@ name: Android CI Build
 
 on:
   push:
-    branches: [ "master" ]
-  workflow_dispatch:  # This is the "Manual Override" button
+    branches: [ "master", "main" ] # Added main just in case your repo uses it
+  workflow_dispatch: 
 
 jobs:
   build:
@@ -22,39 +22,34 @@ jobs:
       run: |
         echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > app/release-keystore.jks
         if [ ! -s app/release-keystore.jks ]; then
-          echo "ERROR: Keystore file is empty!"
-          ls -la app/release-keystore.jks
+          echo "ERROR: Keystore file is empty! Check your SIGNING_KEY secret."
           exit 1
         fi
-        file app/release-keystore.jks
-        keytool -list -v -keystore app/release-keystore.jks -storepass Android | head -20 || echo "Keystore validation failed"
-    
+
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
     - name: Build with Gradle
-      run: |Create build.log if missing
-      if: always()
-      run: if [ ! -f build.log ]; then echo "Build failed before Gradle task execution" > build.log; fi
+      # We combine the run and the logging into one valid step
+      run: ./gradlew assembleRelease --stacktrace > build.log 2>&1
 
-    - name: Upload APK
+    - name: Sign APK
+      # Using the r0adkll action we discussed to actually sign the output
+      uses: r0adkll/sign-android-release@v1
+      id: sign_app
+      with:
+        releaseDirectory: app/build/outputs/apk/release
+        signingKeyBase64: ${{ secrets.SIGNING_KEY }}
+        alias: ${{ secrets.ALIAS }}
+        keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
+        keyPassword: ${{ secrets.KEY_PASSWORD }}
+
+    - name: Upload Signed APK
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: FastFeed-Release
-        path: app/build/outputs/apk/**/*.apk
-        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-
-    - name: Upload APK
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: FastFeed-Release
-        path: app/build/outputs/apk/**/*.apk
-
-    - name: Create build.log if missing
-      if: always()
-      run: if [ ! -f build.log ]; then echo "Build failed before Gradle task execution" > build.log; fi
+        name: FastFeed-Signed-Build
+        path: ${{ steps.sign_app.outputs.signedReleaseFile || 'app/build/outputs/apk/**/*.apk' }}
 
     - name: Upload build log
       if: always()
