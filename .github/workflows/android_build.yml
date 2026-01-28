@@ -2,7 +2,7 @@ name: Android CI Build
 
 on:
   push:
-    branches: [ "master", "main" ] # Added main just in case your repo uses it
+    branches: [ "master" ]
   workflow_dispatch: 
 
 jobs:
@@ -18,42 +18,26 @@ jobs:
         distribution: 'temurin'
         cache: gradle
 
-    - name: Decode Keystore
-      run: |
-        echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > app/release-keystore.jks
-        if [ ! -s app/release-keystore.jks ]; then
-          echo "ERROR: Keystore file is empty! Check your SIGNING_KEY secret."
-          exit 1
-        fi
-
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
-    - name: Build with Gradle
-      # We combine the run and the logging into one valid step
-      run: ./gradlew assembleRelease --stacktrace > build.log 2>&1
+    - name: Build Unsigned Release APK
+      # We use assembleRelease but WITHOUT signing configs in build.gradle
+      run: ./gradlew assembleRelease --stacktrace
 
     - name: Sign APK
-      # Using the r0adkll action we discussed to actually sign the output
       uses: r0adkll/sign-android-release@v1
       id: sign_app
       with:
         releaseDirectory: app/build/outputs/apk/release
+        # This action decodes the SIGNING_KEY secret automatically
         signingKeyBase64: ${{ secrets.SIGNING_KEY }}
         alias: ${{ secrets.ALIAS }}
         keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
         keyPassword: ${{ secrets.KEY_PASSWORD }}
 
     - name: Upload Signed APK
-      if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: FastFeed-Signed-Build
-        path: ${{ steps.sign_app.outputs.signedReleaseFile || 'app/build/outputs/apk/**/*.apk' }}
-
-    - name: Upload build log
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: build-log
-        path: build.log
+        name: FastFeed-Final-Signed
+        path: ${{ steps.sign_app.outputs.signedReleaseFile }}
