@@ -7,18 +7,16 @@ class FastingRepository(private val fastingDao: FastingDao) {
     fun getAllSessions(): Flow<List<FastingSessionEntity>> =
         fastingDao.getAllSessions()
 
-    suspend fun insertSession(
-        startTimeMillis: Long,
-        endTimeMillis: Long,
-        goalHours: Float
-    ): Long {
+    // Inside FastingRepository.kt
+    suspend fun insertSession(startTime: Long, endTime: Long, goalHours: Float) {
+        val durationHours = (endTime - startTime) / 3600000.0
         val session = FastingSessionEntity(
-            startTime = startTimeMillis,
-            endTime = endTimeMillis,
+            startTime = startTime,
+            endTime = endTime,
             goalHours = goalHours,
-            createdAt = System.currentTimeMillis()
+            durationHours = durationHours
         )
-        return fastingDao.insertSession(session)
+        fastingDao.insert(session)
     }
 
     suspend fun deleteSession(session: FastingSessionEntity) {

@@ -22,11 +22,26 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            // We leave signingConfig OUT. GitHub Actions will sign the resulting APK.
+            // This remains the official: com.example.fastingtracker
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+        
+        debug {
+            // This becomes: com.example.fastingtracker.dev
+            applicationIdSuffix = ".dev"
+            // This adds a label to the version name so you can tell them apart in settings
+            versionNameSuffix = "-DEBUG"
+            
+            // This creates a variable we can use in the Manifest for the App Name
+            resValue("string", "app_name_label", "FastFeed (DEV)")
+        }
+        
+        // We need to add this so the release build also has the variable
+        getByName("release") {
+            resValue("string", "app_name_label", "FastFeed")
         }
     }
     
