@@ -2,7 +2,6 @@ package com.example.fastingtracker.data
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import java.time.LocalDateTime
 
 @Entity(tableName = "fasting_sessions")
 data class FastingSessionEntity(

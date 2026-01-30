@@ -30,6 +30,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.fastingtracker.data.FastingDatabase
 import com.example.fastingtracker.data.FastingRepository
 import com.example.fastingtracker.data.PreferencesManager
+import com.example.fastingtracker.data.FastingSessionUiModel
 import java.time.*
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
@@ -173,20 +174,32 @@ fun FastingTrackerApp(viewModel: FastingAppViewModel, repository: FastingReposit
     val scope = rememberCoroutineScope()
     var sessions by remember { mutableStateOf<List<FastingSessionUiModel>>(emptyList()) }
 
+    // Use collectAsState for cleaner Flow handling in Compose
     LaunchedEffect(Unit) {
         repository.getAllSessions().collect { list ->
             sessions = list.map { 
-                FastingSessionUiModel(it.id, 
+                FastingSessionUiModel(
+                    it.id, 
                     LocalDateTime.ofInstant(Instant.ofEpochMilli(it.startTime), ZoneId.systemDefault()),
                     LocalDateTime.ofInstant(Instant.ofEpochMilli(it.endTime), ZoneId.systemDefault()),
-                    it.goalHours, it.durationHours) 
+                    it.goalHours, 
+                    it.durationHours
+                ) 
             }
         }
     }
 
     when (currentScreen) {
-        Screen.FastingTracker -> FastingScreen(viewModel, { currentScreen = Screen.History }, { scope.launch { viewModel.endFasting() } })
-        Screen.History -> HistoryScreen(sessions, { currentScreen = Screen.FastingTracker }, {})
+        Screen.FastingTracker -> FastingScreen(
+            viewModel = viewModel, 
+            onNavigateHistory = { currentScreen = Screen.History }, 
+            onEndFasting = { scope.launch { viewModel.endFasting() } }
+        )
+        Screen.History -> HistoryScreen(
+            sessions = sessions, 
+            onNavigateBack = { currentScreen = Screen.FastingTracker },
+            onDeleteSession = { /* Optional: Add delete logic */ }
+        )
     }
 }
 
@@ -200,8 +213,11 @@ fun FastingScreen(viewModel: FastingAppViewModel, onNavigateHistory: () -> Unit,
     LaunchedEffect(viewModel.isFasting, viewModel.startTime) {
         while (viewModel.isFasting) {
             viewModel.startTime?.let {
-                elapsedHours = Duration.between(it, LocalDateTime.now()).toSeconds() / 3600f
-                if (elapsedHours >= (viewModel.goalHours ?: 0f)) viewModel.sendGoalReachedNotification()
+                val duration = Duration.between(it, LocalDateTime.now())
+                elapsedHours = duration.toSeconds() / 3600f
+                if (elapsedHours >= (viewModel.goalHours ?: 0f)) {
+                    viewModel.sendGoalReachedNotification()
+                }
             }
             delay(1000)
         }
@@ -215,33 +231,43 @@ fun FastingScreen(viewModel: FastingAppViewModel, onNavigateHistory: () -> Unit,
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Select your goal and starting time.")
                     listOf(12f, 16f, 18f, 20f, 24f).forEach { hours ->
-                        Button(modifier = Modifier.fillMaxWidth(), onClick = {
-                            showDateTimePicker(context, null) { picked ->
-                                viewModel.startFasting(hours, picked)
-                                viewModel.showGoalDialog = false
+                        Button(
+                            modifier = Modifier.fillMaxWidth(), 
+                            onClick = {
+                                showDateTimePicker(context, null) { picked ->
+                                    viewModel.startFasting(hours, picked)
+                                    viewModel.showGoalDialog = false
+                                }
                             }
-                        }) { Text("$hours Hours") }
+                        ) { Text("$hours Hours") }
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { viewModel.showGoalDialog = false }) { Text("Cancel") } }
+            confirmButton = { 
+                TextButton(onClick = { viewModel.showGoalDialog = false }) { Text("Cancel") } 
+            }
         )
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
         Text("Fast Feed", style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.primary)
 
-        // START TIME CARD (Calibration Point)
         Card(
-            modifier = Modifier.fillMaxWidth().clickable {
-                showDateTimePicker(context, viewModel.startTime) { picked ->
-                    if (viewModel.isFasting) viewModel.updateStartTime(picked) else viewModel.startTime = picked
-                }
-            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    showDateTimePicker(context, viewModel.startTime) { picked ->
+                        if (viewModel.isFasting) viewModel.updateStartTime(picked) 
+                        else viewModel.startTime = picked
+                    }
+                },
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
         ) {
             Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -254,8 +280,17 @@ fun FastingScreen(viewModel: FastingAppViewModel, onNavigateHistory: () -> Unit,
         if (viewModel.isFasting) {
             val progress = (elapsedHours / (viewModel.goalHours ?: 1f)).coerceIn(0f, 1f)
             Box(contentAlignment = Alignment.Center, modifier = Modifier.size(220.dp)) {
-                CircularProgressIndicator(progress = 1f, modifier = Modifier.fillMaxSize(), color = Color.LightGray, strokeWidth = 10.dp)
-                CircularProgressIndicator(progress = progress, modifier = Modifier.fillMaxSize(), strokeWidth = 10.dp)
+                CircularProgressIndicator(
+                    progress = 1f, 
+                    modifier = Modifier.fillMaxSize(), 
+                    color = Color.LightGray, 
+                    strokeWidth = 10.dp
+                )
+                CircularProgressIndicator(
+                    progress = progress, 
+                    modifier = Modifier.fillMaxSize(), 
+                    strokeWidth = 10.dp
+                )
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(String.format("%.1f", elapsedHours), style = MaterialTheme.typography.displayLarge)
                     Text("HOURS ELAPSED", style = MaterialTheme.typography.labelMedium)
@@ -266,7 +301,6 @@ fun FastingScreen(viewModel: FastingAppViewModel, onNavigateHistory: () -> Unit,
 
         Spacer(Modifier.weight(1f))
 
-        // Actions
         Button(
             onClick = { viewModel.showGoalDialog = true },
             modifier = Modifier.fillMaxWidth().height(60.dp),
@@ -287,4 +321,7 @@ fun FastingScreen(viewModel: FastingAppViewModel, onNavigateHistory: () -> Unit,
     }
 }
 
-sealed class Screen { object FastingTracker : Screen(); object History : Screen() }
+sealed class Screen { 
+    object FastingTracker : Screen()
+    object History : Screen() 
+}

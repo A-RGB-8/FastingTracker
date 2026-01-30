@@ -14,7 +14,7 @@ interface FastingDao {
     @Delete
     suspend fun deleteSession(session: FastingSessionEntity)
 
-    @Query("SELECT * FROM fasting_sessions ORDER BY createdAt DESC")
+    @Query("SELECT * FROM fasting_sessions ORDER BY startTime DESC")
     fun getAllSessions(): Flow<List<FastingSessionEntity>>
 
     @Query("SELECT * FROM fasting_sessions WHERE id = :id")
@@ -26,6 +26,7 @@ interface FastingDao {
     @Query("SELECT AVG(endTime - startTime) / 3600000.0 FROM fasting_sessions")
     suspend fun getAverageDurationHours(): Double?
 
-    @Query("SELECT * FROM fasting_sessions ORDER BY createdAt DESC LIMIT 1")
+    // FIXED: Changed createdAt to startTime
+    @Query("SELECT * FROM fasting_sessions ORDER BY startTime DESC LIMIT 1")
     suspend fun getLastSession(): FastingSessionEntity?
 }

@@ -16,7 +16,7 @@ class FastingRepository(private val fastingDao: FastingDao) {
             goalHours = goalHours,
             durationHours = durationHours
         )
-        fastingDao.insert(session)
+        fastingDao.insertSession(session)
     }
 
     suspend fun deleteSession(session: FastingSessionEntity) {
