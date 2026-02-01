@@ -24,7 +24,8 @@ android {
 
         // Parallel Build Support: Sets the App Name based on build type
         val appName = "Fast Feed"
-        resValue("string", "app_name_label", appName)
+        // Default name for the app
+        manifestPlaceholders["appName"] = "Fast Feed"
     }
 
     signingConfigs {
@@ -47,11 +48,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("release")
         }
         debug {
             applicationIdSuffix = ".debug"
-            resValue("string", "app_name_label", "Fast Feed (Debug)")
+            manifestPlaceholders["appName"] = "Fast Feed (Debug)"
         }
     }
 
