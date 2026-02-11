@@ -3,30 +3,23 @@ package com.example.fastingtracker.data
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface FastingDao {
-    @Insert
-    suspend fun insertSession(session: FastingSessionEntity): Long
+    // Corrected: Explicitly using OnConflictStrategy.REPLACE
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSession(session: FastingSessionEntity)
+
+    @Update
+    suspend fun updateSession(session: FastingSessionEntity)
 
     @Delete
     suspend fun deleteSession(session: FastingSessionEntity)
 
     @Query("SELECT * FROM fasting_sessions ORDER BY startTime DESC")
     fun getAllSessions(): Flow<List<FastingSessionEntity>>
-
-    @Query("SELECT * FROM fasting_sessions WHERE id = :id")
-    suspend fun getSessionById(id: Int): FastingSessionEntity?
-
-    @Query("SELECT COUNT(*) FROM fasting_sessions")
-    suspend fun getSessionCount(): Int
-
-    @Query("SELECT AVG(endTime - startTime) / 3600000.0 FROM fasting_sessions")
-    suspend fun getAverageDurationHours(): Double?
-
-    // FIXED: Changed createdAt to startTime
-    @Query("SELECT * FROM fasting_sessions ORDER BY startTime DESC LIMIT 1")
-    suspend fun getLastSession(): FastingSessionEntity?
 }

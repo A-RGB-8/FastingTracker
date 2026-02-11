@@ -36,6 +36,8 @@ import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Calendar
+import androidx.lifecycle.viewModelScope
+import com.example.fastingtracker.data.FastingSessionEntity
 
 // --- ViewModel ---
 
@@ -82,14 +84,14 @@ class FastingAppViewModel(
         preferencesManager.setCurrentSessionGoal(goal)
     }
 
-    suspend fun endFasting() {
+    suspend fun endFasting(endTime: LocalDateTime) {
         val start = startTime ?: return
         val goal = goalHours ?: return
-        val endTime = LocalDateTime.now()
 
         val startMillis = start.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val endMillis = endTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
+        // Pass the calculated millis to the repository
         repository.insertSession(startMillis, endMillis, goal)
         
         lastFastDuration = String.format("%.1f", (endMillis - startMillis) / 3600000.0)
@@ -126,6 +128,33 @@ class FastingAppViewModel(
             hours >= goal -> "Target reached! 🎉"
             goal - hours <= 1f -> "Almost there..."
             else -> "Fasting in progress"
+        }
+    }
+
+    fun updateSession(session: FastingSessionUiModel) {
+        viewModelScope.launch {
+            // Converting UI Model (LocalDateTime) back to Entity (Long/Epoch Milli)
+            val entity = FastingSessionEntity(
+                id = session.id,
+                startTime = session.startTime.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                endTime = session.endTime.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                goalHours = session.goalHours,
+                durationHours = session.durationHours
+            )
+            repository.updateSession(entity)
+        }
+    }
+
+    fun deleteSession(session: FastingSessionUiModel) {
+        viewModelScope.launch {
+            val entity = FastingSessionEntity(
+                id = session.id,
+                startTime = session.startTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                endTime = session.endTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                goalHours = session.goalHours,
+                durationHours = session.durationHours
+            )
+            repository.deleteSession(entity)
         }
     }
 }
@@ -174,7 +203,6 @@ fun FastingTrackerApp(viewModel: FastingAppViewModel, repository: FastingReposit
     val scope = rememberCoroutineScope()
     var sessions by remember { mutableStateOf<List<FastingSessionUiModel>>(emptyList()) }
 
-    // Use collectAsState for cleaner Flow handling in Compose
     LaunchedEffect(Unit) {
         repository.getAllSessions().collect { list ->
             sessions = list.map { 
@@ -193,18 +221,22 @@ fun FastingTrackerApp(viewModel: FastingAppViewModel, repository: FastingReposit
         Screen.FastingTracker -> FastingScreen(
             viewModel = viewModel, 
             onNavigateHistory = { currentScreen = Screen.History }, 
-            onEndFasting = { scope.launch { viewModel.endFasting() } }
+            // Update: This now receives the 'pickedTime' from the picker
+            onEndFasting = { pickedTime -> 
+                scope.launch { viewModel.endFasting(pickedTime) } 
+            }
         )
         Screen.History -> HistoryScreen(
             sessions = sessions, 
             onNavigateBack = { currentScreen = Screen.FastingTracker },
-            onDeleteSession = { /* Optional: Add delete logic */ }
+            onDeleteSession = { session -> viewModel.deleteSession(session) },
+            onUpdateSession = { session -> viewModel.updateSession(session) }
         )
     }
 }
 
 @Composable
-fun FastingScreen(viewModel: FastingAppViewModel, onNavigateHistory: () -> Unit, onEndFasting: () -> Unit) {
+fun FastingScreen(viewModel: FastingAppViewModel, onNavigateHistory: () -> Unit, onEndFasting: (LocalDateTime) -> Unit) {
     val context = LocalContext.current
     var elapsedHours by remember { mutableStateOf(0f) }
     val formatter = DateTimeFormatter.ofPattern("MMM dd, HH:mm")
@@ -309,10 +341,19 @@ fun FastingScreen(viewModel: FastingAppViewModel, onNavigateHistory: () -> Unit,
 
         if (viewModel.isFasting) {
             Button(
-                onClick = onEndFasting,
-                modifier = Modifier.fillMaxWidth().height(60.dp),
+                onClick = {
+                    // Trigger the picker, then pass the result to the onEndFasting callback
+                    showDateTimePicker(context, LocalDateTime.now()) { pickedTime ->
+                        onEndFasting(pickedTime)
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(60.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-            ) { Text("FINISH FAST / START FEED", fontSize = 16.sp) }
+            ) { 
+                Text("FINISH FAST / START FEED", fontSize = 16.sp) 
+            }
         }
 
         OutlinedButton(onClick = onNavigateHistory, modifier = Modifier.fillMaxWidth().height(60.dp)) {

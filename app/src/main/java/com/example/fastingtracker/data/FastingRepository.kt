@@ -4,31 +4,24 @@ import kotlinx.coroutines.flow.Flow
 
 class FastingRepository(private val fastingDao: FastingDao) {
 
-    fun getAllSessions(): Flow<List<FastingSessionEntity>> =
-        fastingDao.getAllSessions()
+    fun getAllSessions(): Flow<List<FastingSessionEntity>> = fastingDao.getAllSessions()
 
-    // Inside FastingRepository.kt
-    suspend fun insertSession(startTime: Long, endTime: Long, goalHours: Float) {
-        val durationHours = (endTime - startTime) / 3600000.0
-        val session = FastingSessionEntity(
-            startTime = startTime,
-            endTime = endTime,
-            goalHours = goalHours,
-            durationHours = durationHours
+    suspend fun insertSession(start: Long, end: Long, goal: Float) {
+        val duration = (end - start) / 3600000.0
+        val entity = FastingSessionEntity(
+            startTime = start,
+            endTime = end,
+            goalHours = goal,
+            durationHours = duration
         )
-        fastingDao.insertSession(session)
+        fastingDao.insertSession(entity)
+    }
+
+    suspend fun updateSession(session: FastingSessionEntity) {
+        fastingDao.updateSession(session)
     }
 
     suspend fun deleteSession(session: FastingSessionEntity) {
         fastingDao.deleteSession(session)
     }
-
-    suspend fun getSessionCount(): Int =
-        fastingDao.getSessionCount()
-
-    suspend fun getAverageDurationHours(): Double? =
-        fastingDao.getAverageDurationHours()
-
-    suspend fun getLastSession(): FastingSessionEntity? =
-        fastingDao.getLastSession()
 }

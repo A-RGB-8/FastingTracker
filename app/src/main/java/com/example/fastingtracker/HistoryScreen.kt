@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
@@ -14,10 +13,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.time.Duration
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import com.example.fastingtracker.data.FastingSessionUiModel
@@ -27,26 +27,22 @@ import com.example.fastingtracker.data.FastingSessionUiModel
 fun HistoryScreen(
     sessions: List<FastingSessionUiModel>,
     onNavigateBack: () -> Unit,
-    onDeleteSession: (FastingSessionUiModel) -> Unit
+    onDeleteSession: (FastingSessionUiModel) -> Unit,
+    onUpdateSession: (FastingSessionUiModel) -> Unit
 ) {
+    val context = LocalContext.current
     var sessionToDelete by remember { mutableStateOf<FastingSessionUiModel?>(null) }
-    var sessionToEdit by remember { mutableStateOf<FastingSessionUiModel?>(null) }
-    var editedGoal by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        // Top App Bar
         TopAppBar(
             title = { Text("Fasting History", fontSize = 20.sp) },
             navigationIcon = {
                 IconButton(onClick = onNavigateBack) {
-                    Icon(
-                        imageVector = Icons.Default.ArrowBack, // Fixed: removed redundant .Icons
-                        contentDescription = "Back"
-                    )
+                    Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back")
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
@@ -58,9 +54,7 @@ fun HistoryScreen(
 
         if (sessions.isEmpty()) {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
+                modifier = Modifier.fillMaxSize().padding(16.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -71,14 +65,10 @@ fun HistoryScreen(
                 )
             }
         } else {
-            // Summary Stats
             SummaryCard(sessions = sessions)
 
-            // Sessions List
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
+                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = PaddingValues(bottom = 16.dp)
             ) {
@@ -86,9 +76,22 @@ fun HistoryScreen(
                     SessionCard(
                         session = session,
                         onDelete = { sessionToDelete = session },
-                        onEdit = { 
-                            sessionToEdit = session
-                            editedGoal = session.goalHours.toInt().toString()
+                        onEdit = {
+                            // Step 1: Pick new Start Time
+                            showDateTimePicker(context, session.startTime) { newStart ->
+                                // Step 2: Pick new End Time
+                                showDateTimePicker(context, session.endTime) { newEnd ->
+                                    // Step 3: Calculate new duration and update
+                                    val newDuration = Duration.between(newStart, newEnd).toSeconds() / 3600.0
+                                    onUpdateSession(
+                                        session.copy(
+                                            startTime = newStart,
+                                            endTime = newEnd,
+                                            durationHours = newDuration
+                                        )
+                                    )
+                                }
+                            }
                         }
                     )
                 }
@@ -100,8 +103,8 @@ fun HistoryScreen(
     if (sessionToDelete != null) {
         AlertDialog(
             onDismissRequest = { sessionToDelete = null },
-            title = { Text("Delete Session?", fontSize = 18.sp) },
-            text = { Text("Are you sure you want to delete this fasting session?") },
+            title = { Text("Delete Session?") },
+            text = { Text("This will permanently remove this record from your history.") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -116,32 +119,9 @@ fun HistoryScreen(
             }
         )
     }
-
-    // Edit Goal Dialog (Placeholder for logic)
-    if (sessionToEdit != null) {
-        AlertDialog(
-            onDismissRequest = { sessionToEdit = null },
-            title = { Text("Edit Goal", fontSize = 18.sp) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Session: ${sessionToEdit!!.startTime.format(DateTimeFormatter.ofPattern("MMM dd, yyyy"))}")
-                    Text("Original goal: ${sessionToEdit!!.goalHours.toInt()} hours")
-                    Text("Note: Goal is for reference only.", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                    OutlinedTextField(
-                        value = editedGoal,
-                        onValueChange = { editedGoal = it },
-                        label = { Text("New goal (hours)") },
-                        modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { sessionToEdit = null }) { Text("Done") }
-            }
-        )
-    }
 }
+
+// ... SummaryCard and StatItem remain the same as your code ...
 
 @Composable
 fun SummaryCard(sessions: List<FastingSessionUiModel>) {
@@ -150,23 +130,13 @@ fun SummaryCard(sessions: List<FastingSessionUiModel>) {
     val longestSession = sessions.maxOfOrNull { it.durationHours } ?: 0.0
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
+        modifier = Modifier.fillMaxWidth().padding(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Statistics", style = MaterialTheme.typography.titleLarge)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 StatItem("Total Fasts", "$totalSessions")
                 StatItem("Average", String.format("%.1f h", averageDuration))
                 StatItem("Longest", String.format("%.1f h", longestSession))
@@ -197,9 +167,7 @@ fun SessionCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
