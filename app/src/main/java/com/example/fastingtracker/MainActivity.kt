@@ -1,11 +1,8 @@
 package com.example.fastingtracker
 
 import android.app.DatePickerDialog
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.app.TimePickerDialog
 import android.content.Context
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -23,7 +20,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.app.NotificationCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -49,12 +45,14 @@ class FastingAppViewModel(
     private val preferencesManager: PreferencesManager,
     private val context: Context
 ) : ViewModel() {
+    companion object {
+        private const val FIXED_GOAL_HOURS = 16f
+    }
+
     var isFasting by mutableStateOf(false)
     var startTime by mutableStateOf<LocalDateTime?>(null)
-    var goalHours by mutableStateOf<Float?>(null)
-    var showGoalDialog by mutableStateOf(false)
+    val goalHours = FIXED_GOAL_HOURS
     var lastFastDuration by mutableStateOf("0")
-    var goalReachedNotificationShown by mutableStateOf(false)
     
     // Centralized Timer State (Source of Truth)
     var currentFastingStatus by mutableStateOf<FastingStatus?>(null)
@@ -63,11 +61,9 @@ class FastingAppViewModel(
     init {
         lastFastDuration = preferencesManager.getLastFastDuration()
         val savedStartTime = preferencesManager.getCurrentSessionStartTime()
-        val savedGoal = preferencesManager.getCurrentSessionGoal()
 
-        if (savedStartTime > 0 && savedGoal > 0) {
+        if (savedStartTime > 0) {
             startTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(savedStartTime), ZoneId.systemDefault())
-            goalHours = savedGoal
             isFasting = true
         }
     }
@@ -78,28 +74,25 @@ class FastingAppViewModel(
         currentFastingStatus = FastingStatusProvider.getStatusForHour(hourKey)
     }
 
-    fun startFasting(goal: Float, selectedTime: LocalDateTime) {
+    fun startFasting(selectedTime: LocalDateTime) {
         startTime = selectedTime
-        goalHours = goal
         isFasting = true
-        goalReachedNotificationShown = false
-        saveCurrentState(selectedTime, goal)
+        saveCurrentState(selectedTime)
     }
 
     fun updateStartTime(newTime: LocalDateTime) {
         startTime = newTime
-        goalHours?.let { saveCurrentState(newTime, it) }
+        saveCurrentState(newTime)
     }
 
-    private fun saveCurrentState(time: LocalDateTime, goal: Float) {
+    private fun saveCurrentState(time: LocalDateTime) {
         val millis = time.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         preferencesManager.setCurrentSessionStartTime(millis)
-        preferencesManager.setCurrentSessionGoal(goal)
     }
 
     suspend fun endFasting(endTime: LocalDateTime) {
         val start = startTime ?: return
-        val goal = goalHours ?: return
+        val goal = goalHours
 
         val startMillis = start.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val endMillis = endTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
@@ -111,7 +104,6 @@ class FastingAppViewModel(
 
         isFasting = false
         startTime = null
-        goalHours = null
         currentElapsedHours = 0f
         currentFastingStatus = null
         preferencesManager.clearCurrentSession()
@@ -143,27 +135,8 @@ class FastingAppViewModel(
         }
     }
 
-    fun sendGoalReachedNotification() {
-        if (goalReachedNotificationShown) return
-        val channelId = "fasting_notifications"
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(channelId, "Fasting Tracker", NotificationManager.IMPORTANCE_HIGH)
-            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.createNotificationChannel(channel)
-        }
-        val notification = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("Fasting Goal Reached!")
-            .setContentText("You have hit your target. Well done.")
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
-            .build()
-        (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).notify(1, notification)
-        goalReachedNotificationShown = true
-    }
-
     fun getStatusMessage(hours: Float): String {
-        val goal = goalHours ?: return ""
+        val goal = goalHours
         return when {
             hours >= goal -> "Target reached! 🎉"
             goal - hours <= 1f -> "Almost there..."
@@ -259,39 +232,11 @@ fun FastingScreen(viewModel: FastingAppViewModel, onNavigateHistory: () -> Unit,
                 val hours = duration.toSeconds() / 3600f
                 viewModel.updateTimer(hours) 
                 
-                if (hours >= (viewModel.goalHours ?: 0f)) {
-                    viewModel.sendGoalReachedNotification()
-                }
             }
             delay(1000)
         }
     }
 
-    if (viewModel.showGoalDialog) {
-        AlertDialog(
-            onDismissRequest = { viewModel.showGoalDialog = false },
-            title = { Text("Start Fasting") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Select your goal and starting time.")
-                    listOf(12f, 16f, 18f, 20f, 24f).forEach { hours ->
-                        Button(
-                            modifier = Modifier.fillMaxWidth(), 
-                            onClick = {
-                                showDateTimePicker(context, null) { picked ->
-                                    viewModel.startFasting(hours, picked)
-                                    viewModel.showGoalDialog = false
-                                }
-                            }
-                        ) { Text("$hours Hours") }
-                    }
-                }
-            },
-            confirmButton = { 
-                TextButton(onClick = { viewModel.showGoalDialog = false }) { Text("Cancel") } 
-            }
-        )
-    }
 
     Column(
         modifier = Modifier
@@ -322,7 +267,7 @@ fun FastingScreen(viewModel: FastingAppViewModel, onNavigateHistory: () -> Unit,
         }
 
         if (viewModel.isFasting) {
-            val progress = (viewModel.currentElapsedHours / (viewModel.goalHours ?: 1f)).coerceIn(0f, 1f)
+            val progress = (viewModel.currentElapsedHours / viewModel.goalHours).coerceIn(0f, 1f)
             
             Box(contentAlignment = Alignment.Center, modifier = Modifier.size(220.dp)) {
                 CircularProgressIndicator(
@@ -369,7 +314,11 @@ fun FastingScreen(viewModel: FastingAppViewModel, onNavigateHistory: () -> Unit,
         Spacer(Modifier.weight(1f))
 
         Button(
-            onClick = { viewModel.showGoalDialog = true },
+            onClick = {
+                showDateTimePicker(context, viewModel.startTime) { picked ->
+                    viewModel.startFasting(picked)
+                }
+            },
             modifier = Modifier.fillMaxWidth().height(60.dp),
             enabled = !viewModel.isFasting
         ) { Text("START NEW FAST", fontSize = 16.sp) }

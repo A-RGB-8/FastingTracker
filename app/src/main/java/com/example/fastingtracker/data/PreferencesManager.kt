@@ -31,18 +31,9 @@ class PreferencesManager(context: Context) {
         sharedPreferences.edit().putLong("current_session_start_time", timeMillis).apply()
     }
 
-    fun getCurrentSessionGoal(): Float {
-        return sharedPreferences.getFloat("current_session_goal", 0f)
-    }
-
-    fun setCurrentSessionGoal(hours: Float) {
-        sharedPreferences.edit().putFloat("current_session_goal", hours).apply()
-    }
-
     fun clearCurrentSession() {
-        sharedPreferences.edit().apply {
-            putLong("current_session_start_time", 0L)
-            putFloat("current_session_goal", 0f)
-        }.apply()
+        sharedPreferences.edit()
+            .putLong("current_session_start_time", 0L)
+            .apply()
     }
 }

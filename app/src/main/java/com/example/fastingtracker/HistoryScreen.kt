@@ -178,11 +178,10 @@ fun SessionCard(
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Row(modifier = Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Goal: ${session.goalHours.toInt()}h", style = MaterialTheme.typography.labelSmall)
                     Text(
-                        "Actual: ${String.format("%.1f", session.durationHours)}h",
+                        "Duration: ${String.format("%.1f", session.durationHours)}h",
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (session.durationHours >= session.goalHours) Color(0xFF4CAF50) else Color.Gray
+                        color = Color.Gray
                     )
                 }
             }
